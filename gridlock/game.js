@@ -3,6 +3,7 @@ import { stagePuzzles } from './logic/puzzles.js'
 import { validatePlacement } from './logic/board.js'
 import { canMove, applyMove } from './logic/moves.js'
 import { isSolved } from './logic/win.js'
+import { solve } from './logic/solver.js'
 import * as sound from './sound.js'
 
 const canvas = document.getElementById('board')
@@ -24,6 +25,8 @@ const restartBtn = document.getElementById('restartBtn')
 const toStartBtn = document.getElementById('toStartBtn')
 const dpad = document.getElementById('dpad')
 const hint = document.getElementById('hint')
+const hintBtn = document.getElementById('hintBtn')
+const timerEl = document.getElementById('timer')
 
 const DIFFICULTY_LABELS = {
   Beginner: '초급',
@@ -45,6 +48,36 @@ let gridOffsetX = 0
 let gridOffsetY = 0
 let shakeUntil = 0
 let stageIndex = 0
+
+// ---- 타이머: 처음 시작부터 마지막 스테이지 클리어까지 누적 시간 ----
+let timerElapsedMs = 0
+let timerStartTs = 0
+let timerRunning = false
+
+function formatTime(ms) {
+  const totalSec = Math.floor(ms / 1000)
+  const m = String(Math.floor(totalSec / 60)).padStart(2, '0')
+  const s = String(totalSec % 60).padStart(2, '0')
+  return `${m}:${s}`
+}
+function currentElapsedMs() {
+  return timerRunning ? timerElapsedMs + (performance.now() - timerStartTs) : timerElapsedMs
+}
+function startTimer() {
+  timerElapsedMs = 0
+  timerStartTs = performance.now()
+  timerRunning = true
+}
+function pauseTimer() {
+  if (!timerRunning) return
+  timerElapsedMs += performance.now() - timerStartTs
+  timerRunning = false
+}
+function resumeTimer() {
+  if (timerRunning) return
+  timerStartTs = performance.now()
+  timerRunning = true
+}
 
 // 네온 주차 보드와 차량 스프라이트는 디자인 에셋을 그대로 사용한다.
 // 승용차 12종(색상 전부 다름) + 트럭 2종 + 버스 2종 = 총 16종.
@@ -249,7 +282,8 @@ function tryMove(dir) {
 function onWin() {
   const isLastStage = stageIndex >= stagePuzzles.length - 1
   if (isLastStage) {
-    winText.textContent = `🏆 ${stagePuzzles.length}단계 전부 클리어! 마지막 스테이지 ${game.moveCount}수 만에 성공`
+    pauseTimer()
+    winText.textContent = `🏆 ${stagePuzzles.length}단계 전부 클리어! 마지막 스테이지 ${game.moveCount}수 만에 성공 (총 시간 ${formatTime(currentElapsedMs())})`
     nextStageBtn.classList.add('hidden')
   } else {
     winText.textContent = `🎉 스테이지 ${stageIndex + 1} 클리어! ${game.moveCount}수 만에 성공`
@@ -264,8 +298,13 @@ function togglePause() {
   if (!started) return
   paused = !paused
   pauseBtn.textContent = paused ? '▶' : '⏸'
-  if (paused) showOverlay(pauseOverlay)
-  else hideOverlay(pauseOverlay)
+  if (paused) {
+    showOverlay(pauseOverlay)
+    pauseTimer()
+  } else {
+    hideOverlay(pauseOverlay)
+    resumeTimer()
+  }
 }
 pauseBtn.addEventListener('click', togglePause)
 resumeBtn.addEventListener('click', togglePause)
@@ -287,6 +326,7 @@ startBtn.addEventListener('click', () => {
   started = true
   sound.resumeAudio() // 사용자 첫 클릭 이후에만 오디오 재생 가능
   hideOverlay(startOverlay)
+  startTimer()
 })
 
 /** 현재 스테이지를 처음부터 다시 시작한다 (스테이지 진행도는 유지). */
@@ -307,6 +347,7 @@ toStartBtn.addEventListener('click', () => {
   pauseBtn.textContent = '⏸'
   hideOverlay(pauseOverlay)
   hideOverlay(winOverlay)
+  startTimer()
 })
 
 nextStageBtn.addEventListener('click', () => {
@@ -316,6 +357,26 @@ nextStageBtn.addEventListener('click', () => {
   pauseBtn.textContent = '⏸'
   hideOverlay(pauseOverlay)
   hideOverlay(winOverlay)
+})
+
+// ---- 힌트: 이미 로드된 6x6 스테이지 1개에 대한 즉시 BFS라 상태공간이 작아
+// 클라이언트에서 바로 돌려도 안전하다 (수백~수천 상태, 수 ms 내 종료).
+const MOVE_RE = /^(.+?)([+-])(\d+)$/
+hintBtn.addEventListener('click', () => {
+  if (!started || paused || !game || game.status !== 'IDLE') return
+  const result = solve(game, 300_000)
+  if (!result.solvable || result.solution.length === 0) {
+    hint.textContent = '힌트를 계산할 수 없어요.'
+    return
+  }
+  const match = MOVE_RE.exec(result.solution[0])
+  if (!match) return
+  const [, vehicleId, sign] = match
+  const v = game.vehicles.find((x) => x.id === vehicleId)
+  if (!v) return
+  const dirWord = v.orientation === 'H' ? (sign === '+' ? '오른쪽' : '왼쪽') : sign === '+' ? '아래쪽' : '위쪽'
+  selectedVehicleId = vehicleId
+  hint.textContent = `힌트: 노란 테두리로 표시된 차량을 ${dirWord}으로 이동해보세요. (최소 ${result.minMoves}수 남음)`
 })
 
 muteBtn.addEventListener('click', () => {
@@ -504,6 +565,8 @@ function loop(ts) {
       done()
     }
   }
+
+  if (started) timerEl.textContent = formatTime(currentElapsedMs())
 
   render()
   requestAnimationFrame(loop)

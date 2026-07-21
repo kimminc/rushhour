@@ -191,6 +191,23 @@ h1 {
   min-height: 18px;
 }
 
+.hint-btn {
+  margin-top: 4px;
+  min-height: 40px;
+  padding: 6px 18px;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: 999px;
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hint-btn:active {
+  background: rgba(251, 191, 36, 0.3);
+}
+
 .bottom-buttons {
   display: flex;
   gap: 10px;
