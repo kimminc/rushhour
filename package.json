@@ -1,0 +1,14 @@
+{
+  "name": "vibecoding-games",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "serve": "npx --yes serve . -l 4173"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.4"
+  }
+}

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>바이브코딩 게임 스터디 — 게임 목록</title>
+    <!--
+      게임이 Gridlock 하나뿐인 동안은 목록 페이지를 거치지 않고 바로 게임으로 들어가도록 리다이렉트한다.
+      게임이 2개 이상 늘어나면 이 meta refresh 줄과 아래 script 태그를 지워서 목록 페이지를 다시 보여주면 된다.
+    -->
+    <meta http-equiv="refresh" content="0; url=./gridlock/index.html" />
+    <script>location.replace('./gridlock/index.html')</script>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 24px 16px 48px;
+        background: #f8fafc;
+        font-family: system-ui, -apple-system, 'Malgun Gothic', sans-serif;
+        color: #1e293b;
+      }
+      h1 { text-align: center; margin-bottom: 24px; }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 16px;
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      .card {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        transition: transform 0.15s ease;
+      }
+      .card:hover { transform: translateY(-2px); }
+      .card img {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+        display: block;
+        background: #1e293b;
+      }
+      .card .info { padding: 12px; }
+      .card h2 { margin: 0 0 4px; font-size: 16px; }
+      .card p { margin: 0; font-size: 13px; color: #64748b; }
+    </style>
+  </head>
+  <body>
+    <h1>🎮 바이브코딩 게임 스터디</h1>
+    <div class="grid">
+      <a class="card" href="./gridlock/index.html">
+        <img src="./thumbs/gridlock.svg" alt="Gridlock 썸네일" />
+        <div class="info">
+          <h2>Gridlock</h2>
+          <p>러시아워 보드게임 웹 클론 — 빨간 차를 빼내는 슬라이딩 퍼즐</p>
+        </div>
+      </a>
+    </div>
+  </body>
+</html>
