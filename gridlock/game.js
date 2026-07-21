@@ -41,6 +41,8 @@ let selectedVehicleId = null
 let started = false
 let paused = false
 let cellPx = 0
+let gridOffsetX = 0
+let gridOffsetY = 0
 let shakeUntil = 0
 let stageIndex = 0
 
@@ -65,6 +67,11 @@ const SPRITE_SOURCES = {
   'bus-mint': './assets/bus-mint-transparent.png',
 }
 const BOARD_FLOOR_SRC = './assets/board-floor.png'
+
+// board-floor.png는 원본 이미지를 자르지 않고 그대로 쓴다(브랜드 테두리 포함).
+// 대신 실제 격자가 이미지 안에서 차지하는 영역을 비율로 기록해두고,
+// 차량/출구 렌더링과 클릭 판정을 이 영역 안쪽으로만 오프셋+스케일해서 정렬을 맞춘다.
+const GRID_INSET = { left: 207 / 1254, top: 183 / 1254, width: 837 / 1254, height: 823 / 1254 }
 
 /** @type {Record<string, HTMLImageElement>} */
 const sprites = {}
@@ -131,7 +138,12 @@ function resizeCanvas() {
   canvas.width = Math.round(rect.width * dpr)
   canvas.height = Math.round(rect.height * dpr)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  cellPx = rect.width / game.board.cols
+  // 격자 칸 크기는 이미지 안에서 실제 보드가 차지하는 폭/높이 중 더 작은 쪽 비율로 계산해
+  // 어느 방향으로도 보드 이미지의 시각적 경계를 넘어가지 않게 한다.
+  const gridFrac = Math.min(GRID_INSET.width, GRID_INSET.height)
+  cellPx = (rect.width * gridFrac) / game.board.cols
+  gridOffsetX = rect.width * GRID_INSET.left
+  gridOffsetY = rect.height * GRID_INSET.top
 }
 
 window.addEventListener('resize', resizeCanvas)
@@ -140,8 +152,9 @@ window.addEventListener('resize', resizeCanvas)
 canvas.addEventListener('pointerdown', (e) => {
   if (!started || paused || !game || game.status !== 'IDLE') return
   const rect = canvas.getBoundingClientRect()
-  const col = Math.floor((e.clientX - rect.left) / cellPx)
-  const row = Math.floor((e.clientY - rect.top) / cellPx)
+  const col = Math.floor((e.clientX - rect.left - gridOffsetX) / cellPx)
+  const row = Math.floor((e.clientY - rect.top - gridOffsetY) / cellPx)
+  if (col < 0 || col >= game.board.cols || row < 0 || row >= game.board.rows) return
   const hit = game.vehicles.find((v) => {
     if (v.orientation === 'H') return v.row === row && col >= v.col && col < v.col + v.length
     return v.col === col && row >= v.row && row < v.row + v.length
@@ -416,7 +429,7 @@ function drawExitGuide(board, boardW, boardH) {
   }
 
   ctx.save()
-  ctx.translate(x, y)
+  ctx.translate(gridOffsetX + x, gridOffsetY + y)
   ctx.rotate(angle)
   ctx.shadowColor = '#2de2e6'
   ctx.shadowBlur = 14
@@ -443,10 +456,12 @@ function render() {
   const boardH = board.rows * cellPx
   ctx.clearRect(0, 0, w, h)
 
-  if (boardFloorImg) ctx.drawImage(boardFloorImg, 0, 0, boardW, boardH)
+  // 보드 이미지는 자르지 않고 캔버스 전체에 그대로 채운다(테두리 브랜드 표시 포함).
+  // 격자/차량은 gridOffsetX/Y + cellPx로 이미지 안의 실제 보드 영역에만 맞춰 그린다.
+  if (boardFloorImg) ctx.drawImage(boardFloorImg, 0, 0, w, h)
   else {
     ctx.fillStyle = '#1e293b'
-    ctx.fillRect(0, 0, boardW, boardH)
+    ctx.fillRect(0, 0, w, h)
   }
 
   // 이미지가 없을 때의 격자뿐 아니라, 어떤 보드 이미지 위에서도 출구는 일관되게 안내한다.
@@ -466,8 +481,8 @@ function render() {
     }
     const vw = (v.orientation === 'H' ? v.length : 1) * cellPx - 6
     const vh = (v.orientation === 'V' ? v.length : 1) * cellPx - 6
-    let x = col * cellPx + 3
-    const y = row * cellPx + 3
+    let x = gridOffsetX + col * cellPx + 3
+    const y = gridOffsetY + row * cellPx + 3
     if (v.id === selectedVehicleId) x += shakeOffset
 
     drawVehicle(v, x, y, vw, vh)
