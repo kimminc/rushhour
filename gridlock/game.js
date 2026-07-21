@@ -9,6 +9,7 @@ const canvas = document.getElementById('board')
 const ctx = canvas.getContext('2d')
 const stageIndicatorEl = document.getElementById('stageIndicator')
 const moveCountEl = document.getElementById('moveCount')
+const parCountEl = document.getElementById('parCount')
 const muteBtn = document.getElementById('muteBtn')
 const pauseBtn = document.getElementById('pauseBtn')
 const startOverlay = document.getElementById('startOverlay')
@@ -20,6 +21,7 @@ const winText = document.getElementById('winText')
 const nextStageBtn = document.getElementById('nextStageBtn')
 const restartBtnOverlay = document.getElementById('restartBtnOverlay')
 const restartBtn = document.getElementById('restartBtn')
+const toStartBtn = document.getElementById('toStartBtn')
 const dpad = document.getElementById('dpad')
 const hint = document.getElementById('hint')
 
@@ -29,6 +31,8 @@ const DIFFICULTY_LABELS = {
   Intermediate: '중급',
   Advanced: '고급',
   Expert: '전문가',
+  Master: '마스터',
+  Legend: '레전드',
 }
 
 /** @type {import('./logic/board.js').GameState | null} */
@@ -40,12 +44,25 @@ let cellPx = 0
 let shakeUntil = 0
 let stageIndex = 0
 
-// ---- 에셋 로딩 (Codex /imagen 생성, 크로마키 추출 완료된 스프라이트) ----
+// 네온 주차 보드와 차량 스프라이트는 디자인 에셋을 그대로 사용한다.
+// 승용차 12종(색상 전부 다름) + 트럭 2종 + 버스 2종 = 총 16종.
 const SPRITE_SOURCES = {
-  'sedan-red': './assets/sedan-red.png',
-  'suv-blue': './assets/suv-blue.png',
-  'sedan-yellow': './assets/sedan-yellow.png',
-  'truck-green': './assets/truck-green.png',
+  'sedan-red': './assets/sedan-red-transparent.png',
+  'suv-blue': './assets/suv-blue-transparent.png',
+  'sedan-yellow': './assets/sedan-yellow-transparent.png',
+  'sedan-purple': './assets/sedan-purple-transparent.png',
+  'sedan-green': './assets/sedan-green-transparent.png',
+  'sedan-orange': './assets/sedan-orange-transparent.png',
+  'sedan-pink': './assets/sedan-pink-transparent.png',
+  'sedan-teal': './assets/sedan-teal-transparent.png',
+  'sedan-white': './assets/sedan-white-transparent.png',
+  'sedan-brown': './assets/sedan-brown-transparent.png',
+  'sedan-navy': './assets/sedan-navy-transparent.png',
+  'sedan-lime': './assets/sedan-lime-transparent.png',
+  'truck-green': './assets/truck-green-transparent.png',
+  'truck-amber': './assets/truck-amber-transparent.png',
+  'bus-yellow': './assets/bus-yellow-transparent.png',
+  'bus-mint': './assets/bus-mint-transparent.png',
 }
 const BOARD_FLOOR_SRC = './assets/board-floor.png'
 
@@ -63,19 +80,16 @@ function loadImage(src) {
   })
 }
 
-/** 이미지 로드 실패 시에도 게임은 색상 사각형 폴백으로 계속 동작해야 하므로 에러를 던지지 않는다. */
 async function loadAssets() {
   const keys = Object.keys(SPRITE_SOURCES)
   const results = await Promise.allSettled([
     loadImage(BOARD_FLOOR_SRC),
-    ...keys.map((k) => loadImage(SPRITE_SOURCES[k])),
+    ...keys.map((key) => loadImage(SPRITE_SOURCES[key])),
   ])
   if (results[0].status === 'fulfilled') boardFloorImg = results[0].value
-  else console.warn('board floor 이미지 로드 실패, 단색 배경으로 폴백:', results[0].reason)
-  keys.forEach((key, i) => {
-    const r = results[i + 1]
-    if (r.status === 'fulfilled') sprites[key] = r.value
-    else console.warn(`${key} 스프라이트 로드 실패, 색상 사각형으로 폴백:`, r.reason)
+  keys.forEach((key, index) => {
+    const result = results[index + 1]
+    if (result.status === 'fulfilled') sprites[key] = result.value
   })
 }
 
@@ -106,6 +120,7 @@ function updateHud() {
   const schema = stagePuzzles[stageIndex]
   const label = DIFFICULTY_LABELS[schema.meta?.difficulty] || schema.meta?.difficulty || ''
   stageIndicatorEl.textContent = `스테이지 ${stageIndex + 1}/${stagePuzzles.length}${label ? ` · ${label}` : ''}`
+  parCountEl.textContent = schema.meta?.minMoves != null ? `최소 ${schema.meta.minMoves}수` : ''
 }
 
 // ---- 반응형 캔버스: 내부 해상도(devicePixelRatio 반영)와 CSS 크기를 분리 ----
@@ -221,7 +236,7 @@ function tryMove(dir) {
 function onWin() {
   const isLastStage = stageIndex >= stagePuzzles.length - 1
   if (isLastStage) {
-    winText.textContent = `🏆 5단계 전부 클리어! 마지막 스테이지 ${game.moveCount}수 만에 성공`
+    winText.textContent = `🏆 ${stagePuzzles.length}단계 전부 클리어! 마지막 스테이지 ${game.moveCount}수 만에 성공`
     nextStageBtn.classList.add('hidden')
   } else {
     winText.textContent = `🎉 스테이지 ${stageIndex + 1} 클리어! ${game.moveCount}수 만에 성공`
@@ -272,6 +287,15 @@ function restart() {
 restartBtn.addEventListener('click', restart)
 restartBtnOverlay.addEventListener('click', restart)
 
+/** 진행도와 무관하게 1스테이지로 돌아간다. */
+toStartBtn.addEventListener('click', () => {
+  loadStage(0)
+  paused = false
+  pauseBtn.textContent = '⏸'
+  hideOverlay(pauseOverlay)
+  hideOverlay(winOverlay)
+})
+
 nextStageBtn.addEventListener('click', () => {
   if (stageIndex >= stagePuzzles.length - 1) return // 마지막 스테이지에서는 버튼이 숨겨져 있지만 방어적으로 체크
   loadStage(stageIndex + 1)
@@ -287,14 +311,6 @@ muteBtn.addEventListener('click', () => {
 })
 
 // ---- 렌더링 (Canvas 2D) ----
-// 스프라이트가 로드되지 않았거나 modelKey가 없으면 색상 사각형으로 폴백한다.
-function vehicleColor(v) {
-  if (v.isTarget) return '#e74c3c'
-  if (v.modelKey && v.modelKey.includes('blue')) return '#3b82f6'
-  if (v.modelKey && v.modelKey.includes('yellow')) return '#eab308'
-  if (v.modelKey && v.modelKey.includes('green')) return '#22c55e'
-  return '#94a3b8'
-}
 
 function roundRect(c, x, y, w, h, r) {
   c.beginPath()
@@ -306,20 +322,41 @@ function roundRect(c, x, y, w, h, r) {
   c.closePath()
 }
 
-/** 차량 한 대를 그린다. 스프라이트가 있으면 이미지를, 없으면 색상 사각형을 그린다. */
+// 스프라이트 로드 실패 시에만 쓰이는 폴백 색상 (16종 전부 매핑, 에셋이 없어도 색으로는 구분 가능하게).
+const FALLBACK_COLORS = {
+  'sedan-red': '#e74c3c',
+  'suv-blue': '#3b82f6',
+  'sedan-yellow': '#eab308',
+  'sedan-purple': '#a855f7',
+  'sedan-green': '#22c55e',
+  'sedan-orange': '#f97316',
+  'sedan-pink': '#ec4899',
+  'sedan-teal': '#14b8a6',
+  'sedan-white': '#f1f5f9',
+  'sedan-brown': '#92400e',
+  'sedan-navy': '#1e3a8a',
+  'sedan-lime': '#a3e635',
+  'truck-green': '#22c55e',
+  'truck-amber': '#d97706',
+  'bus-yellow': '#fbbf24',
+  'bus-mint': '#2dd4bf',
+}
+function vehicleColor(v) {
+  if (v.isTarget) return '#e74c3c'
+  return FALLBACK_COLORS[v.modelKey] || '#94a3b8'
+}
+
 function drawVehicle(v, x, y, vw, vh) {
   const cx = x + vw / 2
   const cy = y + vh / 2
   const sprite = v.modelKey ? sprites[v.modelKey] : null
-
   if (sprite) {
     ctx.save()
     ctx.translate(cx, cy)
-    // 스프라이트는 가로 방향(코가 오른쪽)으로 제작됨 — 세로 차량은 90도 회전해서 맞춘다.
     if (v.orientation === 'V') ctx.rotate(Math.PI / 2)
-    const w = v.orientation === 'V' ? vh : vw
-    const h = v.orientation === 'V' ? vw : vh
-    ctx.drawImage(sprite, -w / 2, -h / 2, w, h)
+    const width = v.orientation === 'V' ? vh : vw
+    const height = v.orientation === 'V' ? vw : vh
+    ctx.drawImage(sprite, -width / 2, -height / 2, width, height)
     ctx.restore()
   } else {
     ctx.fillStyle = vehicleColor(v)
@@ -333,6 +370,68 @@ function drawVehicle(v, x, y, vw, vh) {
     roundRect(ctx, x, y, vw, vh, 8)
     ctx.stroke()
   }
+
+  // 목표 차량은 선택하지 않아도 식별 가능해야 한다. 작은 목표 마커는 차의 방향과 무관하게 중앙에 고정한다.
+  if (v.isTarget) {
+    ctx.save()
+    ctx.fillStyle = '#fff7cc'
+    ctx.strokeStyle = '#b91c1c'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.arc(cx, cy, Math.max(7, Math.min(vw, vh) * 0.12), 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = '#b91c1c'
+    ctx.font = `700 ${Math.max(9, Math.min(vw, vh) * 0.2)}px system-ui`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('X', cx, cy + 0.5)
+    ctx.restore()
+  }
+}
+
+/** 보드 이미지 위에 반응형 출구 안내를 얹는다. 이미지 안의 출구 위치와 스키마가 달라도 목표를 명확히 한다. */
+function drawExitGuide(board, boardW, boardH) {
+  const size = cellPx
+  const inset = size * 0.18
+  let x = 0
+  let y = 0
+  let angle = 0
+  if (board.exitSide === 'right') {
+    x = boardW - inset
+    y = board.exitRow * size + size / 2
+    angle = 0
+  } else if (board.exitSide === 'left') {
+    x = inset
+    y = board.exitRow * size + size / 2
+    angle = Math.PI
+  } else if (board.exitSide === 'bottom') {
+    x = board.exitCol * size + size / 2
+    y = boardH - inset
+    angle = Math.PI / 2
+  } else {
+    x = board.exitCol * size + size / 2
+    y = inset
+    angle = -Math.PI / 2
+  }
+
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(angle)
+  ctx.shadowColor = '#2de2e6'
+  ctx.shadowBlur = 14
+  ctx.fillStyle = 'rgba(45, 226, 230, 0.9)'
+  ctx.beginPath()
+  ctx.moveTo(size * 0.25, 0)
+  ctx.lineTo(-size * 0.08, -size * 0.22)
+  ctx.lineTo(-size * 0.08, -size * 0.1)
+  ctx.lineTo(-size * 0.32, -size * 0.1)
+  ctx.lineTo(-size * 0.32, size * 0.1)
+  ctx.lineTo(-size * 0.08, size * 0.1)
+  ctx.lineTo(-size * 0.08, size * 0.22)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
 }
 
 function render() {
@@ -344,25 +443,14 @@ function render() {
   const boardH = board.rows * cellPx
   ctx.clearRect(0, 0, w, h)
 
-  if (boardFloorImg) {
-    ctx.drawImage(boardFloorImg, 0, 0, boardW, boardH)
-  } else {
+  if (boardFloorImg) ctx.drawImage(boardFloorImg, 0, 0, boardW, boardH)
+  else {
     ctx.fillStyle = '#1e293b'
     ctx.fillRect(0, 0, boardW, boardH)
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)'
-    for (let c = 1; c < board.cols; c++) {
-      ctx.beginPath()
-      ctx.moveTo(c * cellPx, 0)
-      ctx.lineTo(c * cellPx, boardH)
-      ctx.stroke()
-    }
-    for (let r = 1; r < board.rows; r++) {
-      ctx.beginPath()
-      ctx.moveTo(0, r * cellPx)
-      ctx.lineTo(boardW, r * cellPx)
-      ctx.stroke()
-    }
   }
+
+  // 이미지가 없을 때의 격자뿐 아니라, 어떤 보드 이미지 위에서도 출구는 일관되게 안내한다.
+  drawExitGuide(board, boardW, boardH)
 
   const now = performance.now()
   const shakeOffset = now < shakeUntil ? Math.sin(now / 20) * 4 : 0
@@ -385,18 +473,6 @@ function render() {
     drawVehicle(v, x, y, vw, vh)
   }
 
-  // 출구 표시 — board-floor.png에도 출구가 그려져 있지만(현재 시드 퍼즐 기준),
-  // 다른 exitSide/exitRow 조합에서도 항상 정확하도록 캔버스에서 별도로 덧그린다.
-  ctx.fillStyle = '#2de2e6'
-  if (board.exitSide === 'right') {
-    ctx.fillRect(boardW - 4, board.exitRow * cellPx + cellPx * 0.2, 4, cellPx * 0.6)
-  } else if (board.exitSide === 'left') {
-    ctx.fillRect(0, board.exitRow * cellPx + cellPx * 0.2, 4, cellPx * 0.6)
-  } else if (board.exitSide === 'bottom') {
-    ctx.fillRect(board.exitCol * cellPx + cellPx * 0.2, boardH - 4, cellPx * 0.6, 4)
-  } else if (board.exitSide === 'top') {
-    ctx.fillRect(board.exitCol * cellPx + cellPx * 0.2, 0, cellPx * 0.6, 4)
-  }
 }
 
 // ---- 게임 루프: requestAnimationFrame + deltaTime (setInterval 사용 안 함) ----
@@ -422,7 +498,7 @@ function loop(ts) {
 async function init() {
   loadStage(0)
   resizeCanvas()
-  await loadAssets() // 실패해도 loadAssets 내부에서 개별 폴백 처리하므로 게임 시작을 막지 않는다
+  await loadAssets()
   requestAnimationFrame(loop)
 }
 init()

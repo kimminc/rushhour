@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { solve } from './solver.js'
 import { replaySolution } from './moves.js'
 import { isSolved } from './win.js'
+import { schemaToState } from './adapter.js'
+import { stagePuzzles } from './puzzles.js'
 
 describe('solve (BFS 최소 이동수)', () => {
   it('막힌 퍼즐의 최소 이동수를 정확히 계산하고, 해법을 재생하면 실제로 풀린다', () => {
@@ -51,5 +53,16 @@ describe('solve (BFS 최소 이동수)', () => {
     const result = solve(puzzle)
     expect(result.solvable).toBe(false)
     expect(result.minMoves).toBeNull()
+  })
+
+  it('출시 스테이지의 난이도 메타데이터는 실제 최소 이동수와 일치한다', () => {
+    for (const puzzle of stagePuzzles) {
+      const initial = schemaToState(puzzle)
+      const result = solve(initial)
+
+      expect(result.solvable, puzzle.id).toBe(true)
+      expect(result.minMoves, puzzle.id).toBe(puzzle.meta.minMoves)
+      expect(isSolved(replaySolution(initial, result.solution)), puzzle.id).toBe(true)
+    }
   })
 })
