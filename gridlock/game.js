@@ -363,7 +363,15 @@ nextStageBtn.addEventListener('click', () => {
 // 클라이언트에서 바로 돌려도 안전하다 (수백~수천 상태, 수 ms 내 종료).
 const MOVE_RE = /^(.+?)([+-])(\d+)$/
 hintBtn.addEventListener('click', () => {
-  if (!started || paused || !game || game.status !== 'IDLE') return
+  if (!started) {
+    hint.textContent = '먼저 "시작하기"를 눌러주세요.'
+    return
+  }
+  if (paused) {
+    hint.textContent = '일시정지 중에는 힌트를 볼 수 없어요. 계속하기를 눌러주세요.'
+    return
+  }
+  if (!game || game.status !== 'IDLE') return // 애니메이션 중 등 일시적 상태는 조용히 무시
   const result = solve(game, 300_000)
   if (!result.solvable || result.solution.length === 0) {
     hint.textContent = '힌트를 계산할 수 없어요.'
