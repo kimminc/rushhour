@@ -29,6 +29,8 @@ const hintBtn = document.getElementById('hintBtn')
 const timerEl = document.getElementById('timer')
 const confettiCanvas = document.getElementById('confetti')
 const confettiCtx = confettiCanvas.getContext('2d')
+const stageBanner = document.getElementById('stageBanner')
+const stageBannerText = document.getElementById('stageBannerText')
 
 const DIFFICULTY_LABELS = {
   Beginner: '초급',
@@ -167,6 +169,17 @@ function updateHud() {
   const label = DIFFICULTY_LABELS[schema.meta?.difficulty] || schema.meta?.difficulty || ''
   stageIndicatorEl.textContent = `스테이지 ${stageIndex + 1}/${stagePuzzles.length}${label ? ` · ${label}` : ''}`
   parCountEl.textContent = schema.meta?.minMoves != null ? `최소 ${schema.meta.minMoves}수` : ''
+}
+
+// ---- 새 스테이지 진입 시 "STAGE N" 배너 ----
+let stageBannerTimer = null
+function showStageBanner(n) {
+  stageBannerText.textContent = `STAGE ${n}`
+  clearTimeout(stageBannerTimer)
+  stageBanner.classList.remove('show')
+  void stageBanner.offsetWidth // 강제 리플로우: 같은 텍스트가 연달아 떠도 트랜지션이 다시 재생되게 한다
+  stageBanner.classList.add('show')
+  stageBannerTimer = setTimeout(() => stageBanner.classList.remove('show'), 1100)
 }
 
 // ---- 반응형 캔버스: 내부 해상도(devicePixelRatio 반영)와 CSS 크기를 분리 ----
@@ -383,6 +396,7 @@ function goToNextStage() {
   pauseBtn.textContent = '⏸'
   hideOverlay(pauseOverlay)
   hideOverlay(winOverlay)
+  showStageBanner(stageIndex + 1)
 }
 
 function onWin() {
@@ -441,6 +455,7 @@ startBtn.addEventListener('click', () => {
   sound.startBgm()
   hideOverlay(startOverlay)
   startTimer()
+  showStageBanner(stageIndex + 1)
 })
 
 /** 현재 스테이지를 처음부터 다시 시작한다 (스테이지 진행도는 유지). */
@@ -464,6 +479,7 @@ toStartBtn.addEventListener('click', () => {
   hideOverlay(pauseOverlay)
   hideOverlay(winOverlay)
   startTimer()
+  showStageBanner(1)
 })
 
 nextStageBtn.addEventListener('click', goToNextStage)

@@ -233,6 +233,32 @@ h1 {
   border: 1px solid rgba(226, 232, 240, 0.35);
 }
 
+.stage-banner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.stage-banner.show {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.stage-banner span {
+  font-size: clamp(30px, 11vw, 52px);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: #fff7cc;
+  text-shadow: 0 0 18px rgba(45, 226, 230, 0.9), 0 0 44px rgba(251, 191, 36, 0.55);
+}
+
 #confetti {
   position: fixed;
   inset: 0;
