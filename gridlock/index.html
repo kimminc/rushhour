@@ -69,6 +69,17 @@
       </div>
     </div>
 
+    <!-- 개발놀이터 오락실 랭킹 SDK — 점수 제출, 자동 게임 등록, 공통 사운드 버튼 제공 -->
+    <script src="https://game.dev-play.kr/sdk/rank.js"></script>
+    <script>
+      DevplayRank.init({
+        gameCode: 'gridlock',
+        gameName: '러시아워 게임',
+        selfRegister: true,
+        scoreOrder: 'asc', // 클리어 시간(초)이 낮을수록 좋은 점수
+        scoreFormat: 'time',
+      })
+    </script>
     <script type="module" src="./game.js"></script>
   </body>
 </html>

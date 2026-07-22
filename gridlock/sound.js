@@ -7,6 +7,12 @@
 let audioCtx = null
 let muted = false
 
+// 개발놀이터 오락실 SDK(DevplayVolume)가 우상단 공통 사운드 버튼/페이더로 전달하는 외부
+// 볼륨 상태. 우리 자체 음소거 버튼(muted)과 별개 채널이라 둘 다 반영해 곱해 적용한다.
+let externalMuted = false
+let externalBgmLevel = 1
+let externalSfxLevel = 1
+
 function ensureCtx() {
   if (!audioCtx) {
     const Ctx = window.AudioContext || window.webkitAudioContext
@@ -17,7 +23,8 @@ function ensureCtx() {
 }
 
 function beep({ freq, duration, type = 'square', gain = 0.15, startDelay = 0 }) {
-  if (muted) return
+  const peakGain = gain * externalSfxLevel
+  if (muted || externalMuted || peakGain <= 0) return // exponentialRamp는 0에서/으로 못 가서 무음이면 아예 스킵
   const ctx = ensureCtx()
   const osc = ctx.createOscillator()
   const gainNode = ctx.createGain()
@@ -26,7 +33,7 @@ function beep({ freq, duration, type = 'square', gain = 0.15, startDelay = 0 }) 
   osc.connect(gainNode)
   gainNode.connect(ctx.destination)
   const t0 = ctx.currentTime + startDelay
-  gainNode.gain.setValueAtTime(gain, t0)
+  gainNode.gain.setValueAtTime(peakGain, t0)
   gainNode.gain.exponentialRampToValueAtTime(0.001, t0 + duration)
   osc.start(t0)
   osc.stop(t0 + duration)
@@ -51,12 +58,23 @@ export function playWin() {
 
 export function toggleMute() {
   muted = !muted
-  if (bgmGain) bgmGain.gain.value = muted ? 0 : 1
+  applyBgmGainValue()
   return muted
 }
 
 export function isMuted() {
   return muted
+}
+
+/**
+ * 개발놀이터 오락실 SDK(DevplayVolume)의 상태를 반영한다. s = { muted, bgm, sfx } (각 0..1).
+ * 우리 자체 음소거 버튼과는 별개 채널이라 두 상태를 곱해서 최종 음량을 정한다.
+ */
+export function applyExternalVolume(s) {
+  externalMuted = !!s.muted
+  externalBgmLevel = typeof s.bgm === 'number' ? s.bgm : 1
+  externalSfxLevel = typeof s.sfx === 'number' ? s.sfx : 1
+  applyBgmGainValue()
 }
 
 // ---- 배경음(칩튠 루프) ----
@@ -123,12 +141,18 @@ let bgmTimerId = null
 let bgmStep = 0
 let bgmNextNoteTime = 0
 
+/** 우리 자체 음소거 + 오락실 SDK 외부 볼륨을 곱해 BGM 마스터 게인에 즉시 반영한다. */
+function applyBgmGainValue() {
+  if (!bgmGain) return
+  bgmGain.gain.value = muted || externalMuted ? 0 : externalBgmLevel
+}
+
 function ensureBgmGain() {
   const ctx = ensureCtx()
   if (!bgmGain) {
     bgmGain = ctx.createGain()
-    bgmGain.gain.value = muted ? 0 : 1
     bgmGain.connect(ctx.destination)
+    applyBgmGainValue()
   }
   return bgmGain
 }

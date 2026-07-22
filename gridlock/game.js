@@ -402,7 +402,13 @@ function onWin() {
   const isLastStage = stageIndex >= stagePuzzles.length - 1
   if (isLastStage) {
     pauseTimer()
-    winText.textContent = `🏆 ${stagePuzzles.length}단계 전부 클리어! 마지막 스테이지 ${game.moveCount}수 만에 성공 (총 시간 ${formatTime(currentElapsedMs())}) — 아래 "다시하기"/"처음으로" 버튼으로 계속 즐겨보세요.`
+    const totalSeconds = Math.round(currentElapsedMs() / 1000)
+    winText.textContent = `🏆 ${stagePuzzles.length}단계 전부 클리어! 마지막 스테이지 ${game.moveCount}수 만에 성공 (총 시간 ${formatTime(currentElapsedMs())})`
+    // 10단계 전부 클리어까지 걸린 총 시간(초)을 점수로 제출한다 — 낮을수록 좋은 기록이라
+    // SDK init에서 scoreOrder:'asc' + scoreFormat:'time'으로 맞춰뒀다.
+    if (window.DevplayRank) {
+      window.DevplayRank.gameOver(totalSeconds, { onRestart: goToStartStage })
+    }
   } else {
     winText.textContent = `🎉 스테이지 ${stageIndex + 1} 클리어! ${game.moveCount}수 만에 성공`
   }
@@ -467,7 +473,8 @@ function restart() {
 restartBtn.addEventListener('click', restart)
 
 /** 진행도와 무관하게 1스테이지로 돌아간다. */
-toStartBtn.addEventListener('click', () => {
+/** 진행도와 무관하게 1스테이지로 돌아가 새로 시작한다. */
+function goToStartStage() {
   clearWinAdvanceTimer()
   loadStage(0)
   paused = false
@@ -476,7 +483,8 @@ toStartBtn.addEventListener('click', () => {
   hideOverlay(winOverlay)
   startTimer()
   showStageBanner(1)
-})
+}
+toStartBtn.addEventListener('click', goToStartStage)
 
 // ---- 힌트: 이미 로드된 6x6 스테이지 1개에 대한 즉시 BFS라 상태공간이 작아
 // 클라이언트에서 바로 돌려도 안전하다 (수백~수천 상태, 수 ms 내 종료).
@@ -724,6 +732,20 @@ function loop(ts) {
 
   render()
   requestAnimationFrame(loop)
+}
+
+// ---- 개발놀이터 오락실 SDK 사운드 버튼 연동 ----
+// 자체 WebAudio 엔진을 쓰므로, SDK의 공통 사운드 버튼(음소거/볼륨 페이더)이 실제로
+// 우리 bgm/효과음 게인을 제어하도록 연결한다. SDK가 없는 환경(로컬 테스트 등)도 있으니
+// window.DevplayVolume 존재를 확인한 뒤에만 연결한다.
+if (window.DevplayVolume) {
+  const applyDevplaySound = (s) => sound.applyExternalVolume(s)
+  applyDevplaySound({
+    muted: window.DevplayVolume.isMuted(),
+    bgm: window.DevplayVolume.getVolume('bgm'),
+    sfx: window.DevplayVolume.getVolume('sfx'),
+  })
+  window.DevplayVolume.onLevels(applyDevplaySound)
 }
 
 // ---- 초기화 ----
