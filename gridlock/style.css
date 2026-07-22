@@ -143,10 +143,6 @@ h1 {
   background: rgba(226, 232, 240, 0.85);
 }
 
-#nextStageBtn.hidden {
-  display: none;
-}
-
 #stageIndicator {
   font-weight: 600;
   color: #2de2e6;

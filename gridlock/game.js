@@ -19,7 +19,7 @@ const pauseOverlay = document.getElementById('pauseOverlay')
 const resumeBtn = document.getElementById('resumeBtn')
 const winOverlay = document.getElementById('winOverlay')
 const winText = document.getElementById('winText')
-const nextStageBtn = document.getElementById('nextStageBtn')
+const winButtons = document.getElementById('winButtons')
 const restartBtnOverlay = document.getElementById('restartBtnOverlay')
 const restartBtn = document.getElementById('restartBtn')
 const toStartBtn = document.getElementById('toStartBtn')
@@ -404,10 +404,10 @@ function onWin() {
   if (isLastStage) {
     pauseTimer()
     winText.textContent = `🏆 ${stagePuzzles.length}단계 전부 클리어! 마지막 스테이지 ${game.moveCount}수 만에 성공 (총 시간 ${formatTime(currentElapsedMs())})`
-    nextStageBtn.classList.add('hidden')
+    winButtons.classList.remove('hidden') // 마지막 스테이지는 자동으로 넘어갈 다음 단계가 없으니 다시하기를 보여준다
   } else {
     winText.textContent = `🎉 스테이지 ${stageIndex + 1} 클리어! ${game.moveCount}수 만에 성공`
-    nextStageBtn.classList.remove('hidden')
+    winButtons.classList.add('hidden') // 곧바로 다음 스테이지로 자동 진행되니 버튼 없이 축하만 보여준다
   }
   showOverlay(winOverlay)
   sound.playWin()
@@ -481,8 +481,6 @@ toStartBtn.addEventListener('click', () => {
   startTimer()
   showStageBanner(1)
 })
-
-nextStageBtn.addEventListener('click', goToNextStage)
 
 // ---- 힌트: 이미 로드된 6x6 스테이지 1개에 대한 즉시 BFS라 상태공간이 작아
 // 클라이언트에서 바로 돌려도 안전하다 (수백~수천 상태, 수 ms 내 종료).
