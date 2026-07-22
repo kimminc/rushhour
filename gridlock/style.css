@@ -132,17 +132,6 @@ h1 {
   cursor: pointer;
 }
 
-.win-buttons {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.win-buttons #restartBtnOverlay {
-  background: rgba(226, 232, 240, 0.85);
-}
-
 #stageIndicator {
   font-weight: 600;
   color: #2de2e6;

@@ -62,17 +62,61 @@ export function isMuted() {
 // ---- 배경음(칩튠 루프) ----
 // 8비트풍 아르페지오 멜로디 + 베이스, look-ahead 스케줄러로 정확한 타이밍 유지.
 // (렌더 루프는 반드시 rAF를 쓰지만, 오디오 스케줄링은 별개 — 표준적인 Web Audio 패턴이다.)
-const TEMPO_BPM = 132
-const EIGHTH_SEC = 60 / TEMPO_BPM / 2
 const SCHEDULE_AHEAD_SEC = 0.1
 const LOOKAHEAD_MS = 25
 
-// C - F - Dm - G 진행 위의 2마디(16 eighth-note) 루프.
-const MELODY = [
-  523.25, 659.25, 783.99, 659.25, 698.46, 880.0, 783.99, 659.25, 587.33, 698.46, 880.0, 698.46, 783.99, 987.77,
-  1046.5, 783.99,
+// 스테이지마다 분위기가 바뀌도록 서로 다른 조성의 2마디(16 eighth-note) 루프 4종을 두고
+// 순환시킨다. 뒤로 갈수록(난이도가 오를수록) 템포도 조금씩 빨라진다.
+const BGM_PATTERNS = [
+  {
+    // C - F - Dm - G
+    melody: [
+      523.25, 659.25, 783.99, 659.25, 698.46, 880.0, 783.99, 659.25, 587.33, 698.46, 880.0, 698.46, 783.99, 987.77,
+      1046.5, 783.99,
+    ],
+    bass: [130.81, 130.81, 174.61, 174.61, 146.83, 146.83, 196.0, 196.0],
+    tempo: 128,
+  },
+  {
+    // Am - F - C - G
+    melody: [
+      880.0, 1046.5, 1318.51, 1046.5, 698.46, 880.0, 1046.5, 880.0, 783.99, 987.77, 1174.66, 987.77, 698.46, 880.0,
+      1046.5, 783.99,
+    ],
+    bass: [220.0, 220.0, 174.61, 174.61, 130.81, 130.81, 196.0, 196.0],
+    tempo: 134,
+  },
+  {
+    // G - C - Em - D
+    melody: [
+      392.0, 493.88, 587.33, 493.88, 523.25, 659.25, 587.33, 493.88, 440.0, 523.25, 659.25, 523.25, 392.0, 493.88,
+      587.33, 440.0,
+    ],
+    bass: [196.0, 196.0, 130.81, 130.81, 164.81, 164.81, 146.83, 146.83],
+    tempo: 140,
+  },
+  {
+    // Em - C - D - Em (긴장감 있는 단조)
+    melody: [
+      329.63, 392.0, 493.88, 392.0, 523.25, 659.25, 587.33, 493.88, 587.33, 493.88, 392.0, 329.63, 392.0, 493.88,
+      587.33, 329.63,
+    ],
+    bass: [164.81, 164.81, 130.81, 130.81, 146.83, 146.83, 164.81, 164.81],
+    tempo: 148,
+  },
 ]
-const BASS = [130.81, 130.81, 174.61, 174.61, 146.83, 146.83, 196.0, 196.0] // 4분음표(멜로디 2스텝당 1개)
+
+let currentPattern = BGM_PATTERNS[0]
+let eighthSec = 60 / currentPattern.tempo / 2
+
+/** 스테이지에 맞는 배경음 패턴으로 전환한다. 이미 재생 중이면 다음 마디부터 자연스럽게 바뀐다. */
+export function setBgmVariant(index) {
+  const pattern = BGM_PATTERNS[((index % BGM_PATTERNS.length) + BGM_PATTERNS.length) % BGM_PATTERNS.length]
+  if (pattern === currentPattern) return
+  currentPattern = pattern
+  eighthSec = 60 / currentPattern.tempo / 2
+  bgmStep = 0 // 새 패턴은 마디 처음부터 재생
+}
 
 let bgmGain = null
 let bgmTimerId = null
@@ -107,12 +151,13 @@ function scheduleBgmNote(freq, time, duration, type, peakGain) {
 function bgmScheduler() {
   const ctx = ensureCtx()
   while (bgmNextNoteTime < ctx.currentTime + SCHEDULE_AHEAD_SEC) {
-    const i = bgmStep % MELODY.length
-    scheduleBgmNote(MELODY[i], bgmNextNoteTime, EIGHTH_SEC * 0.9, 'square', 0.05)
+    const { melody, bass } = currentPattern
+    const i = bgmStep % melody.length
+    scheduleBgmNote(melody[i], bgmNextNoteTime, eighthSec * 0.9, 'square', 0.05)
     if (i % 2 === 0) {
-      scheduleBgmNote(BASS[(i / 2) % BASS.length], bgmNextNoteTime, EIGHTH_SEC * 2 * 0.9, 'triangle', 0.07)
+      scheduleBgmNote(bass[(i / 2) % bass.length], bgmNextNoteTime, eighthSec * 2 * 0.9, 'triangle', 0.07)
     }
-    bgmNextNoteTime += EIGHTH_SEC
+    bgmNextNoteTime += eighthSec
     bgmStep++
   }
 }

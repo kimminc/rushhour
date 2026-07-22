@@ -19,8 +19,6 @@ const pauseOverlay = document.getElementById('pauseOverlay')
 const resumeBtn = document.getElementById('resumeBtn')
 const winOverlay = document.getElementById('winOverlay')
 const winText = document.getElementById('winText')
-const winButtons = document.getElementById('winButtons')
-const restartBtnOverlay = document.getElementById('restartBtnOverlay')
 const restartBtn = document.getElementById('restartBtn')
 const toStartBtn = document.getElementById('toStartBtn')
 const dpad = document.getElementById('dpad')
@@ -161,6 +159,7 @@ function loadPuzzle(schema) {
 function loadStage(index) {
   stageIndex = Math.max(0, Math.min(stagePuzzles.length - 1, index))
   loadPuzzle(stagePuzzles[stageIndex])
+  sound.setBgmVariant(stageIndex) // 스테이지마다 칩튠 배경음 분위기를 바꾼다
 }
 
 function updateHud() {
@@ -403,11 +402,9 @@ function onWin() {
   const isLastStage = stageIndex >= stagePuzzles.length - 1
   if (isLastStage) {
     pauseTimer()
-    winText.textContent = `🏆 ${stagePuzzles.length}단계 전부 클리어! 마지막 스테이지 ${game.moveCount}수 만에 성공 (총 시간 ${formatTime(currentElapsedMs())})`
-    winButtons.classList.remove('hidden') // 마지막 스테이지는 자동으로 넘어갈 다음 단계가 없으니 다시하기를 보여준다
+    winText.textContent = `🏆 ${stagePuzzles.length}단계 전부 클리어! 마지막 스테이지 ${game.moveCount}수 만에 성공 (총 시간 ${formatTime(currentElapsedMs())}) — 아래 "다시하기"/"처음으로" 버튼으로 계속 즐겨보세요.`
   } else {
     winText.textContent = `🎉 스테이지 ${stageIndex + 1} 클리어! ${game.moveCount}수 만에 성공`
-    winButtons.classList.add('hidden') // 곧바로 다음 스테이지로 자동 진행되니 버튼 없이 축하만 보여준다
   }
   showOverlay(winOverlay)
   sound.playWin()
@@ -468,7 +465,6 @@ function restart() {
   hideOverlay(winOverlay)
 }
 restartBtn.addEventListener('click', restart)
-restartBtnOverlay.addEventListener('click', restart)
 
 /** 진행도와 무관하게 1스테이지로 돌아간다. */
 toStartBtn.addEventListener('click', () => {
