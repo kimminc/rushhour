@@ -51,9 +51,87 @@ export function playWin() {
 
 export function toggleMute() {
   muted = !muted
+  if (bgmGain) bgmGain.gain.value = muted ? 0 : 1
   return muted
 }
 
 export function isMuted() {
   return muted
+}
+
+// ---- 배경음(칩튠 루프) ----
+// 8비트풍 아르페지오 멜로디 + 베이스, look-ahead 스케줄러로 정확한 타이밍 유지.
+// (렌더 루프는 반드시 rAF를 쓰지만, 오디오 스케줄링은 별개 — 표준적인 Web Audio 패턴이다.)
+const TEMPO_BPM = 132
+const EIGHTH_SEC = 60 / TEMPO_BPM / 2
+const SCHEDULE_AHEAD_SEC = 0.1
+const LOOKAHEAD_MS = 25
+
+// C - F - Dm - G 진행 위의 2마디(16 eighth-note) 루프.
+const MELODY = [
+  523.25, 659.25, 783.99, 659.25, 698.46, 880.0, 783.99, 659.25, 587.33, 698.46, 880.0, 698.46, 783.99, 987.77,
+  1046.5, 783.99,
+]
+const BASS = [130.81, 130.81, 174.61, 174.61, 146.83, 146.83, 196.0, 196.0] // 4분음표(멜로디 2스텝당 1개)
+
+let bgmGain = null
+let bgmTimerId = null
+let bgmStep = 0
+let bgmNextNoteTime = 0
+
+function ensureBgmGain() {
+  const ctx = ensureCtx()
+  if (!bgmGain) {
+    bgmGain = ctx.createGain()
+    bgmGain.gain.value = muted ? 0 : 1
+    bgmGain.connect(ctx.destination)
+  }
+  return bgmGain
+}
+
+function scheduleBgmNote(freq, time, duration, type, peakGain) {
+  const ctx = ensureCtx()
+  const osc = ctx.createOscillator()
+  const g = ctx.createGain()
+  osc.type = type
+  osc.frequency.value = freq
+  osc.connect(g)
+  g.connect(ensureBgmGain())
+  g.gain.setValueAtTime(0, time)
+  g.gain.linearRampToValueAtTime(peakGain, time + 0.01)
+  g.gain.exponentialRampToValueAtTime(0.0001, time + duration)
+  osc.start(time)
+  osc.stop(time + duration + 0.02)
+}
+
+function bgmScheduler() {
+  const ctx = ensureCtx()
+  while (bgmNextNoteTime < ctx.currentTime + SCHEDULE_AHEAD_SEC) {
+    const i = bgmStep % MELODY.length
+    scheduleBgmNote(MELODY[i], bgmNextNoteTime, EIGHTH_SEC * 0.9, 'square', 0.05)
+    if (i % 2 === 0) {
+      scheduleBgmNote(BASS[(i / 2) % BASS.length], bgmNextNoteTime, EIGHTH_SEC * 2 * 0.9, 'triangle', 0.07)
+    }
+    bgmNextNoteTime += EIGHTH_SEC
+    bgmStep++
+  }
+}
+
+/** 배경음 루프를 (재)시작한다. 이미 재생 중이면 아무 것도 하지 않는다. */
+export function startBgm() {
+  if (bgmTimerId) return
+  const ctx = ensureCtx()
+  ensureBgmGain()
+  bgmStep = 0
+  bgmNextNoteTime = ctx.currentTime + 0.05
+  bgmScheduler()
+  bgmTimerId = setInterval(bgmScheduler, LOOKAHEAD_MS)
+}
+
+/** 배경음 스케줄링을 멈춘다(일시정지/탭 비활성화 시). */
+export function stopBgm() {
+  if (bgmTimerId) {
+    clearInterval(bgmTimerId)
+    bgmTimerId = null
+  }
 }

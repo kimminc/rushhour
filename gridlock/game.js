@@ -301,9 +301,11 @@ function togglePause() {
   if (paused) {
     showOverlay(pauseOverlay)
     pauseTimer()
+    sound.stopBgm()
   } else {
     hideOverlay(pauseOverlay)
     resumeTimer()
+    sound.startBgm()
   }
 }
 pauseBtn.addEventListener('click', togglePause)
@@ -325,6 +327,7 @@ function hideOverlay(el) {
 startBtn.addEventListener('click', () => {
   started = true
   sound.resumeAudio() // 사용자 첫 클릭 이후에만 오디오 재생 가능
+  sound.startBgm()
   hideOverlay(startOverlay)
   startTimer()
 })
