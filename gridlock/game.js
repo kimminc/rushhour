@@ -24,6 +24,7 @@ const toStartBtn = document.getElementById('toStartBtn')
 const dpad = document.getElementById('dpad')
 const hint = document.getElementById('hint')
 const hintBtn = document.getElementById('hintBtn')
+const hintPopup = document.getElementById('hintPopup')
 const timerEl = document.getElementById('timer')
 const confettiCanvas = document.getElementById('confetti')
 const confettiCtx = confettiCanvas.getContext('2d')
@@ -489,19 +490,32 @@ toStartBtn.addEventListener('click', goToStartStage)
 // ---- 힌트: 이미 로드된 6x6 스테이지 1개에 대한 즉시 BFS라 상태공간이 작아
 // 클라이언트에서 바로 돌려도 안전하다 (수백~수천 상태, 수 ms 내 종료).
 const MOVE_RE = /^(.+?)([+-])(\d+)$/
+const HINT_POPUP_MS = 3500
+let hintPopupTimer = null
+
+/** 화면 상단에 힌트 메시지를 팝업으로 잠시 띄운다. */
+function showHintPopup(message) {
+  hintPopup.textContent = message
+  clearTimeout(hintPopupTimer)
+  hintPopup.classList.remove('show')
+  void hintPopup.offsetWidth // 강제 리플로우: 연달아 눌러도 트랜지션이 다시 재생되게 한다
+  hintPopup.classList.add('show')
+  hintPopupTimer = setTimeout(() => hintPopup.classList.remove('show'), HINT_POPUP_MS)
+}
+
 hintBtn.addEventListener('click', () => {
   if (!started) {
-    hint.textContent = '먼저 "시작하기"를 눌러주세요.'
+    showHintPopup('먼저 "시작하기"를 눌러주세요.')
     return
   }
   if (paused) {
-    hint.textContent = '일시정지 중에는 힌트를 볼 수 없어요. 계속하기를 눌러주세요.'
+    showHintPopup('일시정지 중에는 힌트를 볼 수 없어요. 계속하기를 눌러주세요.')
     return
   }
   if (!game || game.status !== 'IDLE') return // 애니메이션 중 등 일시적 상태는 조용히 무시
   const result = solve(game, 300_000)
   if (!result.solvable || result.solution.length === 0) {
-    hint.textContent = '힌트를 계산할 수 없어요.'
+    showHintPopup('힌트를 계산할 수 없어요.')
     return
   }
   const match = MOVE_RE.exec(result.solution[0])
@@ -511,7 +525,7 @@ hintBtn.addEventListener('click', () => {
   if (!v) return
   const dirWord = v.orientation === 'H' ? (sign === '+' ? '오른쪽' : '왼쪽') : sign === '+' ? '아래쪽' : '위쪽'
   selectedVehicleId = vehicleId
-  hint.textContent = `힌트: 노란 테두리로 표시된 차량을 ${dirWord}으로 이동해보세요. (최소 ${result.minMoves}수 남음)`
+  showHintPopup(`💡 노란 테두리로 표시된 차량을 ${dirWord}으로 이동해보세요. (최소 ${result.minMoves}수 남음)`)
 })
 
 muteBtn.addEventListener('click', () => {

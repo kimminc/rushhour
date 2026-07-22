@@ -19,6 +19,34 @@ body {
   text-align: center;
 }
 
+.hint-popup {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  z-index: 1000;
+  max-width: min(92vw, 440px);
+  width: max-content;
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  color: #fff7cc;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5), 0 0 22px rgba(251, 191, 36, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -16px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.hint-popup.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .back-link {
   display: inline-block;
   margin-bottom: 8px;
