@@ -572,10 +572,26 @@ function drawVehicle(v, x, y, vw, vh) {
   }
 
   if (v.id === selectedVehicleId) {
-    ctx.lineWidth = 3
-    ctx.strokeStyle = '#fbbf24'
+    // 네온사인처럼 은은하게 숨쉬는 글로우: 바깥은 두껍고 흐린 앰버 광, 안쪽은 얇고
+    // 밝은 크림색 심(neon tube core)을 겹쳐 그려 진짜 네온관 같은 입체감을 낸다.
+    const pulse = 0.5 + Math.sin(performance.now() / 260) * 0.5 // 0..1 숨쉬기
+    ctx.save()
+    ctx.lineJoin = 'round'
+
+    ctx.shadowColor = 'rgba(251, 191, 36, 0.95)'
+    ctx.shadowBlur = 14 + pulse * 14
+    ctx.lineWidth = 4
+    ctx.strokeStyle = `rgba(251, 191, 36, ${0.7 + pulse * 0.3})`
     roundRect(ctx, x, y, vw, vh, 8)
     ctx.stroke()
+
+    ctx.shadowBlur = 6
+    ctx.lineWidth = 1.4
+    ctx.strokeStyle = 'rgba(255, 250, 224, 0.95)'
+    roundRect(ctx, x, y, vw, vh, 8)
+    ctx.stroke()
+
+    ctx.restore()
   }
 
   // 목표 차량은 선택하지 않아도 식별 가능해야 한다. 작은 목표 마커는 차의 방향과 무관하게 중앙에 고정한다.
