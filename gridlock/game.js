@@ -43,7 +43,8 @@ let game = null
 let selectedVehicleId = null
 let started = false
 let paused = false
-let cellPx = 0
+let cellPxX = 0
+let cellPxY = 0
 let gridOffsetX = 0
 let gridOffsetY = 0
 let shakeUntil = 0
@@ -101,10 +102,13 @@ const SPRITE_SOURCES = {
 }
 const BOARD_FLOOR_SRC = './assets/board-floor.png'
 
-// board-floor.png는 원본 이미지를 자르지 않고 그대로 쓴다(브랜드 테두리 포함).
-// 대신 실제 격자가 이미지 안에서 차지하는 영역을 비율로 기록해두고,
-// 차량/출구 렌더링과 클릭 판정을 이 영역 안쪽으로만 오프셋+스케일해서 정렬을 맞춘다.
-const GRID_INSET = { left: 207 / 1254, top: 183 / 1254, width: 837 / 1254, height: 823 / 1254 }
+// board-floor.png 파일 자체는 자르지 않고 원본 그대로 쓰지만(브랜드 테두리 포함),
+// 원본 이미지 바깥의 투명 여백(체커보드가 평탄화된 부분)까지 그대로 그리면 보드가
+// 캔버스 안에서 작게 보인다. 그려질 때만 실제 보드 프레임 바깥 여백을 source-rect로
+// 잘라 캔버스에 꽉 채우고(OUTER_CROP), 그 잘린 영역 기준으로 실제 격자 위치 비율을
+// 다시 계산해(GRID_INSET) 차량/출구/클릭 판정에 쓴다.
+const OUTER_CROP = { left: 103 / 1254, top: 77 / 1254, width: 1041 / 1254, height: 1079 / 1254 }
+const GRID_INSET = { left: 104 / 1041, top: 106 / 1079, width: 837 / 1041, height: 823 / 1079 }
 
 /** @type {Record<string, HTMLImageElement>} */
 const sprites = {}
@@ -171,10 +175,10 @@ function resizeCanvas() {
   canvas.width = Math.round(rect.width * dpr)
   canvas.height = Math.round(rect.height * dpr)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  // 격자 칸 크기는 이미지 안에서 실제 보드가 차지하는 폭/높이 중 더 작은 쪽 비율로 계산해
-  // 어느 방향으로도 보드 이미지의 시각적 경계를 넘어가지 않게 한다.
-  const gridFrac = Math.min(GRID_INSET.width, GRID_INSET.height)
-  cellPx = (rect.width * gridFrac) / game.board.cols
+  // 잘린 보드 이미지(OUTER_CROP)가 정확히 정사각형이 아니라서 가로/세로 칸 크기를
+  // 축별로 따로 계산한다 — 그래야 어느 쪽으로도 늘어나거나 줄어들지 않는다.
+  cellPxX = (rect.width * GRID_INSET.width) / game.board.cols
+  cellPxY = (rect.height * GRID_INSET.height) / game.board.rows
   gridOffsetX = rect.width * GRID_INSET.left
   gridOffsetY = rect.height * GRID_INSET.top
 }
@@ -185,8 +189,8 @@ window.addEventListener('resize', resizeCanvas)
 canvas.addEventListener('pointerdown', (e) => {
   if (!started || paused || !game || game.status !== 'IDLE') return
   const rect = canvas.getBoundingClientRect()
-  const col = Math.floor((e.clientX - rect.left - gridOffsetX) / cellPx)
-  const row = Math.floor((e.clientY - rect.top - gridOffsetY) / cellPx)
+  const col = Math.floor((e.clientX - rect.left - gridOffsetX) / cellPxX)
+  const row = Math.floor((e.clientY - rect.top - gridOffsetY) / cellPxY)
   if (col < 0 || col >= game.board.cols || row < 0 || row >= game.board.rows) return
   const hit = game.vehicles.find((v) => {
     if (v.orientation === 'H') return v.row === row && col >= v.col && col < v.col + v.length
@@ -477,61 +481,72 @@ function drawVehicle(v, x, y, vw, vh) {
 
 /** 보드 이미지 위에 반응형 출구 안내를 얹는다. 이미지 안의 출구 위치와 스키마가 달라도 목표를 명확히 한다. */
 function drawExitGuide(board, boardW, boardH) {
-  const size = cellPx
-  const inset = size * 0.18
+  const inset = cellPxX * 0.16
+  const lift = cellPxY * 0.12 // 칸 정중앙보다 살짝 위로 띄워서 더 또렷하게 보이게 한다
   let x = 0
   let y = 0
   let angle = 0
   if (board.exitSide === 'right') {
     x = boardW - inset
-    y = board.exitRow * size + size / 2
+    y = board.exitRow * cellPxY + cellPxY / 2 - lift
     angle = 0
   } else if (board.exitSide === 'left') {
     x = inset
-    y = board.exitRow * size + size / 2
+    y = board.exitRow * cellPxY + cellPxY / 2 - lift
     angle = Math.PI
   } else if (board.exitSide === 'bottom') {
-    x = board.exitCol * size + size / 2
+    x = board.exitCol * cellPxX + cellPxX / 2
     y = boardH - inset
     angle = Math.PI / 2
   } else {
-    x = board.exitCol * size + size / 2
+    x = board.exitCol * cellPxX + cellPxX / 2
     y = inset
     angle = -Math.PI / 2
   }
 
+  const s = Math.min(cellPxX, cellPxY) * 0.4
   ctx.save()
   ctx.translate(gridOffsetX + x, gridOffsetY + y)
   ctx.rotate(angle)
   ctx.shadowColor = '#2de2e6'
-  ctx.shadowBlur = 14
-  ctx.fillStyle = 'rgba(45, 226, 230, 0.9)'
+  ctx.shadowBlur = 16
+  ctx.fillStyle = 'rgba(45, 226, 230, 0.95)'
   ctx.beginPath()
-  ctx.moveTo(size * 0.25, 0)
-  ctx.lineTo(-size * 0.08, -size * 0.22)
-  ctx.lineTo(-size * 0.08, -size * 0.1)
-  ctx.lineTo(-size * 0.32, -size * 0.1)
-  ctx.lineTo(-size * 0.32, size * 0.1)
-  ctx.lineTo(-size * 0.08, size * 0.1)
-  ctx.lineTo(-size * 0.08, size * 0.22)
+  ctx.moveTo(s, 0)
+  ctx.lineTo(-s * 0.5, -s * 0.85)
+  ctx.lineTo(-s * 0.5, s * 0.85)
   ctx.closePath()
   ctx.fill()
   ctx.restore()
 }
 
 function render() {
-  if (!game || !cellPx) return
+  if (!game || !cellPxX || !cellPxY) return
   const { board, vehicles } = game
   const w = canvas.width / (window.devicePixelRatio || 1)
   const h = canvas.height / (window.devicePixelRatio || 1)
-  const boardW = board.cols * cellPx
-  const boardH = board.rows * cellPx
+  const boardW = board.cols * cellPxX
+  const boardH = board.rows * cellPxY
   ctx.clearRect(0, 0, w, h)
 
-  // 보드 이미지는 자르지 않고 캔버스 전체에 그대로 채운다(테두리 브랜드 표시 포함).
-  // 격자/차량은 gridOffsetX/Y + cellPx로 이미지 안의 실제 보드 영역에만 맞춰 그린다.
-  if (boardFloorImg) ctx.drawImage(boardFloorImg, 0, 0, w, h)
-  else {
+  // 보드 이미지 파일 자체는 자르지 않지만, 그릴 때는 프레임 바깥 여백(OUTER_CROP)을
+  // source-rect로 잘라 캔버스에 꽉 채운다. 격자/차량은 gridOffsetX/Y + cellPxX/Y로
+  // 그 잘린 영역 안의 실제 보드 위치에만 맞춰 그린다.
+  if (boardFloorImg) {
+    const iw = boardFloorImg.naturalWidth
+    const ih = boardFloorImg.naturalHeight
+    ctx.drawImage(
+      boardFloorImg,
+      OUTER_CROP.left * iw,
+      OUTER_CROP.top * ih,
+      OUTER_CROP.width * iw,
+      OUTER_CROP.height * ih,
+      0,
+      0,
+      w,
+      h,
+    )
+  } else {
     ctx.fillStyle = '#1e293b'
     ctx.fillRect(0, 0, w, h)
   }
@@ -551,10 +566,10 @@ function render() {
       row = anim.fromRow + (anim.toRow - anim.fromRow) * eased
       col = anim.fromCol + (anim.toCol - anim.fromCol) * eased
     }
-    const vw = (v.orientation === 'H' ? v.length : 1) * cellPx - 6
-    const vh = (v.orientation === 'V' ? v.length : 1) * cellPx - 6
-    let x = gridOffsetX + col * cellPx + 3
-    const y = gridOffsetY + row * cellPx + 3
+    const vw = (v.orientation === 'H' ? v.length : 1) * cellPxX - 6
+    const vh = (v.orientation === 'V' ? v.length : 1) * cellPxY - 6
+    let x = gridOffsetX + col * cellPxX + 3
+    const y = gridOffsetY + row * cellPxY + 3
     if (v.id === selectedVehicleId) x += shakeOffset
 
     drawVehicle(v, x, y, vw, vh)
