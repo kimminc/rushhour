@@ -299,21 +299,22 @@ function resizeConfettiCanvas() {
 }
 window.addEventListener('resize', resizeConfettiCanvas)
 
-function spawnConfetti(count = 90) {
-  resizeConfettiCanvas()
-  const w = window.innerWidth
+/** 화면 좌표(originX, originY)를 중심으로 사방으로 터지는 폭죽 한 방. */
+function spawnConfettiBurst(originX, originY, count) {
   for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2
+    const speed = 3.5 + Math.random() * 7
     confettiParticles.push({
-      x: Math.random() * w,
-      y: -20 - Math.random() * 200,
-      vx: (Math.random() - 0.5) * 2.6,
-      vy: 2 + Math.random() * 2.5,
+      x: originX,
+      y: originY,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
       rot: Math.random() * Math.PI * 2,
-      vRot: (Math.random() - 0.5) * 0.3,
-      size: 6 + Math.random() * 6,
+      vRot: (Math.random() - 0.5) * 0.35,
+      size: 5 + Math.random() * 6,
       color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
       life: 0,
-      maxLife: 110 + Math.random() * 40,
+      maxLife: 70 + Math.random() * 40,
     })
   }
   if (!confettiRunning) {
@@ -322,12 +323,24 @@ function spawnConfetti(count = 90) {
   }
 }
 
+/** 주차판(보드 캔버스) 위치에서 폭죽처럼 여러 방 연달아 터뜨린다. */
+function spawnConfetti() {
+  resizeConfettiCanvas()
+  const rect = canvas.getBoundingClientRect()
+  const cx = rect.left + rect.width / 2
+  const cy = rect.top + rect.height / 2
+  spawnConfettiBurst(cx, cy, 90)
+  setTimeout(() => spawnConfettiBurst(cx - rect.width * 0.22, cy - rect.height * 0.12, 55), 140)
+  setTimeout(() => spawnConfettiBurst(cx + rect.width * 0.22, cy - rect.height * 0.08, 55), 280)
+}
+
 function confettiLoop() {
   const w = window.innerWidth
   const h = window.innerHeight
   confettiCtx.clearRect(0, 0, w, h)
   for (const p of confettiParticles) {
-    p.vy += 0.06 // 중력
+    p.vx *= 0.985 // 공기저항으로 바깥으로 터지는 기세가 점점 잦아든다
+    p.vy += 0.16 // 중력 — 터진 뒤 포물선으로 떨어지게
     p.x += p.vx
     p.y += p.vy
     p.rot += p.vRot
