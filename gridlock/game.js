@@ -27,6 +27,8 @@ const dpad = document.getElementById('dpad')
 const hint = document.getElementById('hint')
 const hintBtn = document.getElementById('hintBtn')
 const timerEl = document.getElementById('timer')
+const confettiCanvas = document.getElementById('confetti')
+const confettiCtx = confettiCanvas.getContext('2d')
 
 const DIFFICULTY_LABELS = {
   Beginner: '초급',
@@ -283,6 +285,93 @@ function tryMove(dir) {
   }
 }
 
+// ---- 클리어 축하 컨페티: 메인 게임 캔버스와 별개인 전체화면 오버레이 캔버스에
+// 독립된 rAF 루프로 그린다(게임 루프와 섞이지 않게).
+const CONFETTI_COLORS = ['#fbbf24', '#2de2e6', '#f472b6', '#34d399', '#818cf8', '#f87171']
+let confettiParticles = []
+let confettiRunning = false
+
+function resizeConfettiCanvas() {
+  const dpr = window.devicePixelRatio || 1
+  confettiCanvas.width = Math.round(window.innerWidth * dpr)
+  confettiCanvas.height = Math.round(window.innerHeight * dpr)
+  confettiCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
+}
+window.addEventListener('resize', resizeConfettiCanvas)
+
+function spawnConfetti(count = 90) {
+  resizeConfettiCanvas()
+  const w = window.innerWidth
+  for (let i = 0; i < count; i++) {
+    confettiParticles.push({
+      x: Math.random() * w,
+      y: -20 - Math.random() * 200,
+      vx: (Math.random() - 0.5) * 2.6,
+      vy: 2 + Math.random() * 2.5,
+      rot: Math.random() * Math.PI * 2,
+      vRot: (Math.random() - 0.5) * 0.3,
+      size: 6 + Math.random() * 6,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      life: 0,
+      maxLife: 110 + Math.random() * 40,
+    })
+  }
+  if (!confettiRunning) {
+    confettiRunning = true
+    requestAnimationFrame(confettiLoop)
+  }
+}
+
+function confettiLoop() {
+  const w = window.innerWidth
+  const h = window.innerHeight
+  confettiCtx.clearRect(0, 0, w, h)
+  for (const p of confettiParticles) {
+    p.vy += 0.06 // 중력
+    p.x += p.vx
+    p.y += p.vy
+    p.rot += p.vRot
+    p.life++
+    const fadeStart = p.maxLife * 0.7
+    const fade = p.life > fadeStart ? Math.max(0, 1 - (p.life - fadeStart) / (p.maxLife - fadeStart)) : 1
+    confettiCtx.save()
+    confettiCtx.globalAlpha = fade
+    confettiCtx.translate(p.x, p.y)
+    confettiCtx.rotate(p.rot)
+    confettiCtx.fillStyle = p.color
+    confettiCtx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2)
+    confettiCtx.restore()
+  }
+  confettiParticles = confettiParticles.filter((p) => p.life < p.maxLife && p.y < h + 40)
+  if (confettiParticles.length > 0) {
+    requestAnimationFrame(confettiLoop)
+  } else {
+    confettiRunning = false
+    confettiCtx.clearRect(0, 0, w, h)
+  }
+}
+
+// ---- 클리어 시 다음 스테이지로 자동 진행 ----
+const WIN_AUTO_ADVANCE_MS = 1700
+let winAdvanceTimer = null
+
+function clearWinAdvanceTimer() {
+  if (winAdvanceTimer) {
+    clearTimeout(winAdvanceTimer)
+    winAdvanceTimer = null
+  }
+}
+
+function goToNextStage() {
+  clearWinAdvanceTimer()
+  if (stageIndex >= stagePuzzles.length - 1) return
+  loadStage(stageIndex + 1)
+  paused = false
+  pauseBtn.textContent = '⏸'
+  hideOverlay(pauseOverlay)
+  hideOverlay(winOverlay)
+}
+
 function onWin() {
   const isLastStage = stageIndex >= stagePuzzles.length - 1
   if (isLastStage) {
@@ -295,6 +384,11 @@ function onWin() {
   }
   showOverlay(winOverlay)
   sound.playWin()
+  spawnConfetti()
+  clearWinAdvanceTimer()
+  if (!isLastStage) {
+    winAdvanceTimer = setTimeout(goToNextStage, WIN_AUTO_ADVANCE_MS)
+  }
 }
 
 // ---- 일시정지 ----
@@ -338,6 +432,7 @@ startBtn.addEventListener('click', () => {
 
 /** 현재 스테이지를 처음부터 다시 시작한다 (스테이지 진행도는 유지). */
 function restart() {
+  clearWinAdvanceTimer() // 클리어 축하 중 "다시하기"를 누르면 예약된 자동 진행을 취소한다
   loadStage(stageIndex)
   paused = false
   pauseBtn.textContent = '⏸'
@@ -349,6 +444,7 @@ restartBtnOverlay.addEventListener('click', restart)
 
 /** 진행도와 무관하게 1스테이지로 돌아간다. */
 toStartBtn.addEventListener('click', () => {
+  clearWinAdvanceTimer()
   loadStage(0)
   paused = false
   pauseBtn.textContent = '⏸'
@@ -357,14 +453,7 @@ toStartBtn.addEventListener('click', () => {
   startTimer()
 })
 
-nextStageBtn.addEventListener('click', () => {
-  if (stageIndex >= stagePuzzles.length - 1) return // 마지막 스테이지에서는 버튼이 숨겨져 있지만 방어적으로 체크
-  loadStage(stageIndex + 1)
-  paused = false
-  pauseBtn.textContent = '⏸'
-  hideOverlay(pauseOverlay)
-  hideOverlay(winOverlay)
-})
+nextStageBtn.addEventListener('click', goToNextStage)
 
 // ---- 힌트: 이미 로드된 6x6 스테이지 1개에 대한 즉시 BFS라 상태공간이 작아
 // 클라이언트에서 바로 돌려도 안전하다 (수백~수천 상태, 수 ms 내 종료).

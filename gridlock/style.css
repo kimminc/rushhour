@@ -232,3 +232,12 @@ h1 {
   color: #e2e8f0;
   border: 1px solid rgba(226, 232, 240, 0.35);
 }
+
+#confetti {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 999;
+}
